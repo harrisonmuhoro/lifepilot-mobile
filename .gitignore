@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/ios/
+/android/
+
+# Metro & Bundling
+.metro-health-check*
+
+# Environment files - NEVER commit real environment files
+.env
+.env.local
+.env.production
+.env.staging
+.env*.local
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# Testing & Coverage
+coverage/
+*.lcov
+.nyc_output
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo
