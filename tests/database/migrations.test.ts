@@ -93,6 +93,22 @@ describe('Database Migration Runner', () => {
     expect(migration2.up).toHaveBeenCalled();
   });
 
+  it('rejects duplicate migration versions with a clear safeguard error', async () => {
+    const m1: Migration = { version: 1, name: 'first', up: jest.fn() };
+    const m2: Migration = { version: 1, name: 'duplicate', up: jest.fn() };
+
+    await expect(runMigrations(mockDb, [m1, m2])).rejects.toThrow(
+      'Duplicate migration version detected'
+    );
+  });
+
+  it('rejects invalid migration objects or negative versions', async () => {
+    const invalid: any = { version: -1, name: 'invalid', up: jest.fn() };
+    await expect(runMigrations(mockDb, [invalid])).rejects.toThrow(
+      'version must be a positive integer'
+    );
+  });
+
   it('rolls back transaction if a migration fails and prevents recording failed version', async () => {
     const failingMigration: Migration = {
       version: 1,

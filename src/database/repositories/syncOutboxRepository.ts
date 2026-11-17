@@ -60,7 +60,25 @@ export class SyncOutboxRepository {
     };
   }
 
+  /**
+   * Resets any orphaned 'in_progress' items back to 'pending'
+   * (e.g., if the application crashed mid-sync).
+   */
+  async resetOrphanedInProgress(): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.runAsync(
+      `UPDATE sync_outbox
+       SET status = 'pending',
+           updated_at = ?
+       WHERE status = 'in_progress';`,
+      [now]
+    );
+  }
+
   async getPending(limit = 50): Promise<SyncOutboxRecord[]> {
+    // Automatically reset orphaned in_progress items from prior crashes
+    await this.resetOrphanedInProgress();
+
     return this.db.getAllAsync<SyncOutboxRecord>(
       `SELECT * FROM sync_outbox
        WHERE status IN ('pending', 'failed') AND attempts < 5
@@ -76,15 +94,28 @@ export class SyncOutboxRepository {
     errorMessage: string | null = null
   ): Promise<void> {
     const now = new Date().toISOString();
-    await this.db.runAsync(
-      `UPDATE sync_outbox
-       SET status = ?,
-           attempts = attempts + 1,
-           error = ?,
-           updated_at = ?
-       WHERE id = ?;`,
-      [status, errorMessage, now, id]
-    );
+    const shouldIncrementAttempts = status === 'failed';
+
+    if (shouldIncrementAttempts) {
+      await this.db.runAsync(
+        `UPDATE sync_outbox
+         SET status = ?,
+             attempts = attempts + 1,
+             error = ?,
+             updated_at = ?
+         WHERE id = ?;`,
+        [status, errorMessage, now, id]
+      );
+    } else {
+      await this.db.runAsync(
+        `UPDATE sync_outbox
+         SET status = ?,
+             error = ?,
+             updated_at = ?
+         WHERE id = ?;`,
+        [status, errorMessage, now, id]
+      );
+    }
   }
 
   async removeCompleted(id: string): Promise<void> {

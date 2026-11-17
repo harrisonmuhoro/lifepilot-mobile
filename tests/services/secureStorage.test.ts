@@ -2,11 +2,12 @@ import * as SecureStore from 'expo-secure-store';
 import {
   secureStorage,
   StorageKeys,
-} from '../../src/components/../services/storage/secureStorage';
+} from '../../src/services/storage/secureStorage';
 
 describe('SecureStorageService', () => {
   beforeEach(async () => {
     (SecureStore.isAvailableAsync as jest.Mock).mockResolvedValue(true);
+    (secureStorage as any).isAvailableCache = true;
     await secureStorage.clearAuthTokens();
   });
 
@@ -61,14 +62,20 @@ describe('SecureStorageService', () => {
   });
 
   describe('Failure & Platform Availability Handling', () => {
-    it('returns null and skips write when SecureStore is not available on platform', async () => {
-      // Force service to re-evaluate availability cache
+    it('throws error when setItem is called and SecureStore is not available on platform', async () => {
       (secureStorage as any).isAvailableCache = null;
       (SecureStore.isAvailableAsync as jest.Mock).mockResolvedValue(false);
 
-      await secureStorage.setItem('test_key', 'test_value');
-      const value = await secureStorage.getItem('test_key');
+      await expect(
+        secureStorage.setItem('test_key', 'test_value')
+      ).rejects.toThrow('SecureStore is not available');
+    });
 
+    it('returns null when getItem is called and SecureStore is not available on platform', async () => {
+      (secureStorage as any).isAvailableCache = null;
+      (SecureStore.isAvailableAsync as jest.Mock).mockResolvedValue(false);
+
+      const value = await secureStorage.getItem('test_key');
       expect(value).toBeNull();
     });
 

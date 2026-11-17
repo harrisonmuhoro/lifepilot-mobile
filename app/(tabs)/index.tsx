@@ -16,6 +16,7 @@ import { Section } from '../../src/components/layout/Section';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useDatabase } from '../../src/hooks/useDatabase';
 import { useAuthStore } from '../../src/stores/authStore';
+import { formatMinorUnits } from '../../src/schemas/financeSchemas';
 
 export default function DashboardScreen() {
   const { colors, spacing } = useTheme();
@@ -128,7 +129,7 @@ export default function DashboardScreen() {
             color="success"
             style={{ marginVertical: spacing.xs }}
           >
-            $0.00
+            {formatMinorUnits(0, 'KES')}
           </Text>
           <Text variant="caption" color="muted">
             Ready for initial transaction

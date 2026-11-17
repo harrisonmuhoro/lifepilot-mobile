@@ -32,11 +32,9 @@ export class SecureStorageService {
     try {
       const available = await this.isAvailable();
       if (!available) {
-        logger.warn(
-          TAG,
-          `SecureStore not available on platform. Skipping write for key: ${key}`
-        );
-        return;
+        const msg = `SecureStore is not available on this device/platform. Unable to store secure key: ${key}`;
+        logger.error(TAG, msg);
+        throw new Error(msg);
       }
       await SecureStore.setItemAsync(key, value, {
         keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
@@ -64,6 +62,10 @@ export class SecureStorageService {
     try {
       const available = await this.isAvailable();
       if (!available) {
+        logger.warn(
+          TAG,
+          `SecureStore not available. Skipping removal for key: ${key}`
+        );
         return;
       }
       await SecureStore.deleteItemAsync(key);

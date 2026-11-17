@@ -31,13 +31,43 @@ export const getAppliedMigrations = async (
 };
 
 /**
- * Runs all pending migrations in ascending order.
- * Each migration is executed inside a transaction.
+ * Validates array of migrations for duplicates, invalid versions, or missing migration functions.
+ */
+const validateMigrations = (migrations: Migration[]): void => {
+  const versionsSeen = new Set<number>();
+
+  for (const m of migrations) {
+    if (!m || typeof m.version !== 'number' || m.version <= 0) {
+      throw new Error(
+        `Invalid migration object detected: version must be a positive integer.`
+      );
+    }
+    if (!m.name || typeof m.name !== 'string' || m.name.trim() === '') {
+      throw new Error(`Migration v${m.version} is missing a valid name.`);
+    }
+    if (typeof m.up !== 'function') {
+      throw new Error(
+        `Migration v${m.version} (${m.name}) is missing an up function.`
+      );
+    }
+    if (versionsSeen.has(m.version)) {
+      throw new Error(
+        `Duplicate migration version detected: v${m.version} (${m.name}).`
+      );
+    }
+    versionsSeen.add(m.version);
+  }
+};
+
+/**
+ * Runs all pending migrations in ascending order with safeguards.
+ * Each migration is executed inside an isolated transaction block.
  */
 export const runMigrations = async (
   db: SQLiteDatabase,
   migrations: Migration[]
 ): Promise<number> => {
+  validateMigrations(migrations);
   await ensureMigrationTable(db);
 
   const applied = await getAppliedMigrations(db);
@@ -59,7 +89,6 @@ export const runMigrations = async (
       `Applying migration v${migration.version}: ${migration.name}`
     );
 
-    // Run each migration inside its own transaction
     await db.execAsync('BEGIN TRANSACTION;');
     try {
       await migration.up(db);
