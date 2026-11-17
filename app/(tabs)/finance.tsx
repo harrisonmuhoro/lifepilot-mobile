@@ -7,6 +7,7 @@ import { Text } from '../../src/components/common/Text';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { Section } from '../../src/components/layout/Section';
 import { useTheme } from '../../src/hooks/useTheme';
+import { formatMinorUnits } from '../../src/schemas/financeSchemas';
 
 export default function FinanceScreen() {
   const { colors, spacing, borderRadius } = useTheme();
@@ -46,7 +47,7 @@ export default function FinanceScreen() {
             color="primary"
             style={{ marginVertical: spacing.xs }}
           >
-            $0.00
+            {formatMinorUnits(0, 'KES')}
           </Text>
 
           <View
@@ -72,7 +73,7 @@ export default function FinanceScreen() {
                 </Text>
               </View>
               <Text variant="body" weight="semiBold" color="success">
-                +$0.00
+                +{formatMinorUnits(0, 'KES')}
               </Text>
             </View>
 
@@ -88,7 +89,7 @@ export default function FinanceScreen() {
                 </Text>
               </View>
               <Text variant="body" weight="semiBold" color="danger">
-                -$0.00
+                -{formatMinorUnits(0, 'KES')}
               </Text>
             </View>
           </View>

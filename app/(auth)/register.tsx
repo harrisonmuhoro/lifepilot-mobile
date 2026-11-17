@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock, User, Compass } from 'lucide-react-native';
+import { Mail, Lock, User, Compass, PlayCircle } from 'lucide-react-native';
 import { ScreenLayout } from '../../src/components/layout/ScreenLayout';
 import { Text } from '../../src/components/common/Text';
 import { Button } from '../../src/components/common/Button';
@@ -15,11 +15,15 @@ import {
   registerSchema,
   RegisterFormData,
 } from '../../src/schemas/authSchemas';
+import { apiClient } from '../../src/services/api/apiClient';
+import { ApiEndpoints } from '../../src/services/api/apiEndpoints';
+import { LoginResponse } from '../../src/services/api/apiTypes';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { colors, spacing } = useTheme();
   const login = useAuthStore((state) => state.login);
+  const enterDemoMode = useAuthStore((state) => state.enterDemoMode);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const {
@@ -39,17 +43,37 @@ export default function RegisterScreen() {
   const onSubmit = async (data: RegisterFormData) => {
     setErrorMsg(null);
     try {
-      await login('mock-jwt-token-' + Date.now(), {
-        id: 'user-new',
-        name: data.name,
-        email: data.email,
-        currency: 'USD',
-        timezone: 'UTC',
-        createdAt: new Date().toISOString(),
-      });
+      const response = await apiClient.post<LoginResponse>(
+        ApiEndpoints.auth.register,
+        {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          password_confirmation: data.passwordConfirmation,
+        }
+      );
+
+      const { user, tokens } = response.data;
+      await login(tokens.accessToken, user, tokens.refreshToken);
       router.replace('/(tabs)');
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Registration failed');
+      const msg =
+        err instanceof Error ? err.message : 'Registration server unreachable';
+      setErrorMsg(
+        `${msg}. Real registration requires a connected Laravel API backend. Use Development / Demo Mode below for offline access.`
+      );
+    }
+  };
+
+  const handleDemoAccess = async () => {
+    setErrorMsg(null);
+    try {
+      await enterDemoMode();
+      router.replace('/(tabs)');
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Failed to enter demo mode'
+      );
     }
   };
 
@@ -78,6 +102,17 @@ export default function RegisterScreen() {
       </View>
 
       <Card variant="elevated" style={{ width: '100%', maxWidth: 420 }}>
+        <Text variant="h2" weight="bold" style={{ marginBottom: spacing.xs }}>
+          Production Registration
+        </Text>
+        <Text
+          variant="caption"
+          color="muted"
+          style={{ marginBottom: spacing.lg }}
+        >
+          Requires connected Laravel API backend
+        </Text>
+
         {errorMsg && (
           <View
             style={[
@@ -164,7 +199,7 @@ export default function RegisterScreen() {
         />
 
         <Button
-          title="Create Account"
+          title="Create Account (Production API)"
           onPress={() => handleSubmit(onSubmit)()}
           loading={isSubmitting}
           style={{ marginTop: spacing.sm }}
@@ -183,6 +218,43 @@ export default function RegisterScreen() {
           </Text>
         </TouchableOpacity>
       </Card>
+
+      <View
+        style={[
+          styles.demoContainer,
+          {
+            borderColor: colors.borderSubtle,
+            marginTop: spacing.xl,
+            backgroundColor: colors.surfaceSubtle,
+          },
+        ]}
+      >
+        <View style={styles.demoTitleRow}>
+          <PlayCircle size={18} color={colors.primary} />
+          <Text
+            variant="bodySm"
+            weight="semiBold"
+            color="primary"
+            style={{ marginLeft: spacing.xs }}
+          >
+            Development / Demo Access
+          </Text>
+        </View>
+        <Text
+          variant="caption"
+          color="secondary"
+          align="center"
+          style={{ marginTop: 4, marginBottom: spacing.md }}
+        >
+          Explore the application in isolated offline preview mode without an
+          authentication server.
+        </Text>
+        <Button
+          title="Enter Development / Demo Mode"
+          variant="outline"
+          onPress={handleDemoAccess}
+        />
+      </View>
     </ScreenLayout>
   );
 }
@@ -207,5 +279,17 @@ const styles = StyleSheet.create({
   errorBanner: {
     padding: 12,
     borderRadius: 8,
+  },
+  demoContainer: {
+    width: '100%',
+    maxWidth: 420,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  demoTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });

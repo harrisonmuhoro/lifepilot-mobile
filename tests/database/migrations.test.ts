@@ -1,4 +1,8 @@
-import { runMigrations } from '../../src/database/migrationRunner';
+import {
+  runMigrations,
+  getAppliedMigrations,
+} from '../../src/database/migrationRunner';
+import { migration001 } from '../../src/database/migrations/001_initial_schema';
 import { Migration } from '../../src/types/database';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
@@ -89,7 +93,7 @@ describe('Database Migration Runner', () => {
     expect(migration2.up).toHaveBeenCalled();
   });
 
-  it('rolls back transaction if a migration fails', async () => {
+  it('rolls back transaction if a migration fails and prevents recording failed version', async () => {
     const failingMigration: Migration = {
       version: 1,
       name: 'failing_migration',
@@ -102,7 +106,43 @@ describe('Database Migration Runner', () => {
       'Disk full error'
     );
 
-    // Ensure ROLLBACK was issued
     expect(executedSql).toContain('ROLLBACK;');
+    expect(appliedVersions).toHaveLength(0);
+  });
+
+  it('persists applied migration versions and reads them via getAppliedMigrations', async () => {
+    appliedVersions.push({
+      version: 1,
+      name: 'initial_schema',
+      applied_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const result = await getAppliedMigrations(mockDb);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      version: 1,
+      name: 'initial_schema',
+      applied_at: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  describe('Initial Schema (migration001)', () => {
+    it('executes up migration with amount_minor INTEGER and KES default currency', async () => {
+      await migration001.up(mockDb);
+
+      const allExecutedSql = executedSql.join(' ');
+      expect(allExecutedSql).toContain('amount_minor INTEGER NOT NULL');
+      expect(allExecutedSql).toContain("currency TEXT DEFAULT 'KES'");
+      expect(allExecutedSql).not.toContain('amount REAL');
+      expect(allExecutedSql).not.toContain("currency TEXT DEFAULT 'USD'");
+    });
+
+    it('executes down migration cleanly', async () => {
+      if (migration001.down) {
+        await migration001.down(mockDb);
+        const lastExecutedSql = executedSql[executedSql.length - 1];
+        expect(lastExecutedSql).toContain('DROP TABLE IF EXISTS transactions;');
+      }
+    });
   });
 });

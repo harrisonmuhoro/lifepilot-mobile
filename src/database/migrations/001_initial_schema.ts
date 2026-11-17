@@ -60,12 +60,12 @@ export const migration001: Migration = {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
-        amount REAL NOT NULL,
+        amount_minor INTEGER NOT NULL,
         type TEXT NOT NULL, -- 'income' | 'expense' | 'transfer'
         category TEXT NOT NULL,
         description TEXT,
         date TEXT NOT NULL,
-        currency TEXT DEFAULT 'USD',
+        currency TEXT DEFAULT 'KES',
         synced INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,

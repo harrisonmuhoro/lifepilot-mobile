@@ -7,6 +7,7 @@ export const StorageKeys = {
   AUTH_TOKEN: 'lifepilot_auth_token',
   REFRESH_TOKEN: 'lifepilot_refresh_token',
   USER_DATA: 'lifepilot_user_data',
+  DEMO_MODE: 'lifepilot_demo_mode',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
@@ -87,11 +88,25 @@ export class SecureStorageService {
     return this.setItem(StorageKeys.REFRESH_TOKEN, token);
   }
 
+  async isDemoMode(): Promise<boolean> {
+    const val = await this.getItem(StorageKeys.DEMO_MODE);
+    return val === 'true';
+  }
+
+  async setDemoMode(isDemo: boolean): Promise<void> {
+    if (isDemo) {
+      await this.setItem(StorageKeys.DEMO_MODE, 'true');
+    } else {
+      await this.removeItem(StorageKeys.DEMO_MODE);
+    }
+  }
+
   async clearAuthTokens(): Promise<void> {
     await Promise.all([
       this.removeItem(StorageKeys.AUTH_TOKEN),
       this.removeItem(StorageKeys.REFRESH_TOKEN),
       this.removeItem(StorageKeys.USER_DATA),
+      this.removeItem(StorageKeys.DEMO_MODE),
     ]);
   }
 }
