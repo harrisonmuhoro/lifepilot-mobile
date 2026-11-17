@@ -44,17 +44,16 @@
 lifepilot-mobile/
 ├── app/                              # Expo Router file-based navigation
 │   ├── _layout.tsx                   # Root application layout (Providers, DB init)
-│   ├── index.tsx                     # Entry redirect to main tabs
+│   ├── index.tsx                     # Entry redirect to auth/tabs
 │   ├── (auth)/                       # Authentication route group
 │   │   ├── _layout.tsx               # Auth Stack navigator
-│   │   ├── login.tsx                 # Login screen with validation
+│   │   ├── login.tsx                 # Login screen (Production API & Offline Demo Mode)
 │   │   └── register.tsx              # Account registration screen
 │   └── (tabs)/                       # Main application bottom navigation
 │       ├── _layout.tsx               # 5-tab bar configuration
 │       ├── index.tsx                 # [1] Home / Dashboard Shell
 │       ├── planner.tsx               # [2] Planner (Tasks & Habits)
 │       ├── finance.tsx               # [3] Finance (Cashflow & Envelopes)
-│       ├── insights.tsx              # [4] Insights (Analytics & Trends)
 │       └── profile.tsx               # [5] Profile (Settings, Theme, DB status)
 ├── src/
 │   ├── components/
@@ -65,7 +64,7 @@ lifepilot-mobile/
 │   │   ├── config.ts                 # Environment & feature flag constants
 │   │   └── layout.ts                 # Dimensions, grid metrics, tab bar height
 │   ├── database/
-│   │   ├── migrations/               # Database migrations (001_initial_schema.ts)
+│   │   ├── migrations/               # 001_initial_schema.ts, 002_convert_transaction_amounts_to_minor_units.ts
 │   │   ├── repositories/             # SyncOutboxRepository
 │   │   ├── migrationRunner.ts        # Transactional migration executor
 │   │   └── sqlite.ts                 # SQLite singleton & transaction helpers
@@ -102,9 +101,10 @@ lifepilot-mobile/
 
 ### Prerequisites
 
-- **Node.js**: v20+ or v24+
+- **Node.js**: v20+ or v24+ (download from [nodejs.org](https://nodejs.org))
+- **npm**: v10+ (bundled with Node.js)
 - **Android Studio**: Ladybug / Meerkat or later with Android SDK 34+
-- **Android Emulator**: An active AVD (e.g., Medium Phone API 37)
+- **Android Emulator**: An active AVD (e.g., Medium Phone API 37) created in Device Manager
 
 ### Installation
 
@@ -118,7 +118,7 @@ lifepilot-mobile/
 2. Install dependencies:
 
    ```bash
-   npm.cmd install
+   npm install
    ```
 
 3. Create local environment configuration:
@@ -133,66 +133,80 @@ lifepilot-mobile/
 To run the application on your Android emulator:
 
 ```bash
-# Start Android emulator build via Expo
-npm.cmd run android
+npm run android
 ```
 
-Or open the project inside **Android Studio**, launch the emulator from the **Device Manager**, open the integrated terminal (`Alt + F12`), and run:
+Or open the project inside **Android Studio**, launch the emulator from the **Device Manager**, open the integrated terminal (`Alt + F12` on Windows), and run:
 
 ```bash
-npm.cmd run android
+npm run android
 ```
+
+> **Note:** On Windows, if the PowerShell execution policy blocks `npm`, use `npm.cmd` instead, or open a Command Prompt (`cmd`) terminal within Android Studio.
 
 ---
 
-## 6. Quality & Verification Commands
+## 6. Quality Gates & Verification Commands
 
-All quality gates are configured and tested:
+Automated quality gates are enforced via GitHub Actions CI (`.github/workflows/ci.yml`). The CI pipeline runs `npm ci`, TypeScript checking, ESLint, Prettier, and Jest on every push and pull request to `main`.
+
+Run the same checks locally:
 
 ```bash
-# Strict TypeScript Type Checking
-npm.cmd run typecheck
+# Strict TypeScript type checking
+npm run typecheck
 
-# Code Linting (ESLint 9 Flat Config with Expo rules)
-npm.cmd run lint
+# Code linting (ESLint 9 Flat Config with Expo rules)
+npm run lint
 
-# Code Formatting Verification (Prettier)
-npm.cmd run format:check
+# Formatting verification (Prettier)
+npm run format:check
 
-# Automated Prettier Formatting
-npm.cmd run format
+# Auto-format all files
+npm run format
 
-# Jest Unit Test Suite
-npm.cmd test
+# Jest unit test suite (interactive)
+npm test
+
+# Jest CI mode with coverage report
+npm run test:ci
 ```
 
 ---
 
 ## 7. Architecture Highlights
 
-1. **Offline-First Persistence**: Local SQLite database with Write-Ahead Logging (WAL) and automated schema migration runner (`src/database/migrationRunner.ts`).
-2. **Sync Outbox Pattern**: Future-ready transaction and task mutations are queued in `sync_outbox` with UUID idempotency keys.
-3. **Design System**: Strict design tokens with Navy/Slate visual foundation and dynamic Light/Dark mode support.
-4. **Secure Credential Vault**: Token storage abstracted via `expo-secure-store` to ensure security on Android devices.
-5. **Typed REST Contracts**: Centralized Axios client configured with request/response interceptors and Laravel 422 error parsing.
+1. **Offline-First Persistence**: Local SQLite database with Write-Ahead Logging (WAL), Foreign Keys, and automated sequential migration runner (`src/database/migrationRunner.ts`).
+2. **Safe Database Migrations**: Historical migrations are immutable. Breaking schema changes are applied via new numbered migrations. Each migration runs inside `BEGIN TRANSACTION … COMMIT`. Failed migrations roll back automatically.
+3. **Integer Minor-Unit Financial Storage**: All monetary amounts are stored as integer minor units (e.g. KES 1,250.50 → `125050`). `toMinorUnits()` performs string-based conversion to avoid floating-point rounding errors. The default currency is KES.
+4. **Sync Outbox Pattern (Foundation)**: Local mutations are queued in `sync_outbox`. Stale `in_progress` records (orphaned by crash, older than 5 minutes) are recovered automatically. The full background sync engine is planned for Phase 4 and is **not yet implemented**.
+5. **Design System**: Strict design tokens with Navy/Slate visual foundation and dynamic Light/Dark mode support.
+6. **Secure Credential Vault**: All tokens stored exclusively via `expo-secure-store` (Android KeyStore / iOS Keychain). Write failures throw explicitly — credentials are never silently dropped.
+7. **Demo / Offline Mode**: Explicitly isolated. Demo mode does not make API requests to the production backend. It is for offline development preview only.
+8. **Typed REST Contracts**: Centralized Axios client with request/response interceptors and Laravel 422 error normalization.
 
 ---
 
 ## 8. Development Roadmap
 
-- [x] **Phase 1: Foundation (Current)**
+- [x] **Phase 1: Foundation**
   - Project scaffolding with Expo SDK 58 & React Native 0.88.
   - Strict TypeScript configuration.
   - 5-tab Expo Router navigation (Home, Planner, Finance, Insights, Profile).
-  - Design system tokens (colors, typography, spacing, elevation) and reusable UI components.
-  - SQLite singleton, transaction helper, and transactional migration runner.
-  - Secure credential storage abstraction and Axios API client.
-  - Complete Jest unit testing suite and linting/formatting pipelines.
+  - Design system tokens and reusable UI components.
+  - SQLite singleton, WAL mode, transactional migration runner.
+  - Migration 001: Initial schema (tasks, transactions with `amount REAL`, sync outbox, sync cursor).
+  - Migration 002: Backward-compatible upgrade — converts `amount REAL` to `amount_minor INTEGER` (KES default). Safe for fresh installs and existing installations.
+  - Secure credential storage abstraction with explicit failure propagation.
+  - Axios API client with error normalization.
+  - Demo / offline mode (isolated from production backend).
+  - Sync outbox foundation with stale-lease orphan recovery.
+  - Jest test suite: migrations, finance validation, SecureStore failures, outbox retry behavior, UI components.
+  - GitHub Actions CI pipeline.
 - [ ] **Phase 2: Local Planner & Task Engine**
   - Task CRUD operations with SQLite repository.
-  - Priority management and recurring habit tracking engine.
 - [ ] **Phase 3: Financial Engine**
-  - Income/expense logging, budget envelopes, and balance calculation.
+  - Income/expense logging in integer minor units (KES default), budget envelopes, and balance calculation.
 - [ ] **Phase 4: Synchronization Engine**
   - Background outbox sync worker and conflict resolution with Laravel REST API.
 - [ ] **Phase 5: Insights & Analytics Telemetry**

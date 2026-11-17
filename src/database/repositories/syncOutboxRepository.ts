@@ -9,6 +9,14 @@ import { logger } from '../../utils/logger';
 
 const TAG = 'SyncOutboxRepository';
 
+/**
+ * Items that remain in 'in_progress' for longer than this duration are
+ * considered orphaned (e.g. the app crashed mid-sync) and are eligible
+ * for recovery. 5 minutes gives a generous window for a legitimate sync
+ * operation to complete before we assume it was abandoned.
+ */
+const ORPHAN_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
 export interface CreateOutboxItemParams {
   entityType: string;
   entityId: string;
@@ -61,22 +69,33 @@ export class SyncOutboxRepository {
   }
 
   /**
-   * Resets any orphaned 'in_progress' items back to 'pending'
-   * (e.g., if the application crashed mid-sync).
+   * Resets stale 'in_progress' items back to 'pending'.
+   *
+   * Uses a stale-lease threshold rather than resetting every in_progress
+   * record unconditionally. This prevents interfering with a legitimately
+   * active synchronization operation that is still running in another
+   * context. Only items whose updated_at timestamp is older than
+   * ORPHAN_STALE_THRESHOLD_MS are considered orphaned (i.e. the process
+   * that claimed them has likely crashed or timed out).
    */
   async resetOrphanedInProgress(): Promise<void> {
-    const now = new Date().toISOString();
+    const now = new Date();
+    const thresholdTime = new Date(
+      now.getTime() - ORPHAN_STALE_THRESHOLD_MS
+    ).toISOString();
+
     await this.db.runAsync(
       `UPDATE sync_outbox
        SET status = 'pending',
            updated_at = ?
-       WHERE status = 'in_progress';`,
-      [now]
+       WHERE status = 'in_progress'
+         AND updated_at < ?;`,
+      [now.toISOString(), thresholdTime]
     );
   }
 
   async getPending(limit = 50): Promise<SyncOutboxRecord[]> {
-    // Automatically reset orphaned in_progress items from prior crashes
+    // Reset only genuinely stale orphaned in_progress items (not all of them).
     await this.resetOrphanedInProgress();
 
     return this.db.getAllAsync<SyncOutboxRecord>(
@@ -94,6 +113,9 @@ export class SyncOutboxRepository {
     errorMessage: string | null = null
   ): Promise<void> {
     const now = new Date().toISOString();
+
+    // Retry attempts increment ONLY on genuine sync failure.
+    // Transitioning to 'in_progress' or 'synced' does not count as a failure.
     const shouldIncrementAttempts = status === 'failed';
 
     if (shouldIncrementAttempts) {

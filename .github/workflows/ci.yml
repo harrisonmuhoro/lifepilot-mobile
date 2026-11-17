@@ -22,7 +22,10 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        # jest-expo@58 declares a peer dependency on jest@^30 but this project
+        # intentionally uses jest@^29 (compatible at runtime). The flag suppresses
+        # the peer-dependency conflict without upgrading Jest prematurely.
+        run: npm ci --legacy-peer-deps
 
       - name: TypeScript Checking
         run: npm run typecheck
